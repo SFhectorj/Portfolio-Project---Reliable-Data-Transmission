@@ -47,6 +47,8 @@ class RDTLayer(object):
         self.dataToSend = ''
         self.currentIteration = 0
         # Add items as needed
+        self.sendBase = 0
+        self.nextSeqNum = 0
 
     # ################################################################################################################ #
     # setSendChannel()                                                                                                 #
@@ -120,10 +122,13 @@ class RDTLayer(object):
     #                                                                                                                  #
     # ################################################################################################################ #
     def processSend(self):
-        segmentSend = Segment()
+        windowEnd = self.sendBase + self.FLOW_CONTROL_WIN_SIZE
 
         # ############################################################################################################ #
-        print('processSend(): Complete this...')
+        while self.nextSeqNum < len(self.dataToSend):
+            payloadEnd = min(self.nextSeqNum + self.DATA_LENGTH, len(self.dataToSend))
+            if payloadEnd > windowEnd:
+                break  # Stop sending if the next segment would exceed the flow-control window
 
         # You should pipeline segments to fit the flow-control window
         # The flow-control window is the constant RDTLayer.FLOW_CONTROL_WIN_SIZE
@@ -135,17 +140,19 @@ class RDTLayer(object):
         # The seqnum is the sequence number for the segment (in character number, not bytes)
 
 
-        seqnum = "0"
-        data = "x"
+            segmentSend = Segment()                  # Segment to send data
+            payload = self.dataToSend[self.nextSeqNum:payloadEnd]
 
 
         # ############################################################################################################ #
         # Display sending segment
-        segmentSend.setData(seqnum,data)
-        print("Sending segment: ", segmentSend.to_string())
+            segmentSend.setData(str(self.nextSeqNum), payload)
+            print("Sending segment: ", segmentSend.to_string())
 
         # Use the unreliable sendChannel to send the segment
-        self.sendChannel.send(segmentSend)
+            self.sendChannel.send(segmentSend)
+
+            self.nextSeqNum = payloadEnd  # Update nextSeqNum to the end of the payload just sent
 
     # ################################################################################################################ #
     # processReceive()                                                                                                 #
