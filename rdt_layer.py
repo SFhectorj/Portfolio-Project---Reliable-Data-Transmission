@@ -32,6 +32,7 @@ class RDTLayer(object):
     dataToSend = ''
     currentIteration = 0                                # Use this for segment 'timeouts'
     # Add items as needed
+    TIMEOUT_ITERATIONS = 4  # Number of iterations before a segment is considered timed out
 
     # ################################################################################################################ #
     # __init__()                                                                                                       #
@@ -52,6 +53,8 @@ class RDTLayer(object):
         self.nextExpected = 0
         self.receiveBuffer = {}
         self.receiveData = ""
+        self.lastSentIteration = {}
+        self.countSegmentTimeouts = 0
 
     # ################################################################################################################ #
     # setSendChannel()                                                                                                 #
@@ -122,6 +125,22 @@ class RDTLayer(object):
     #                                                                                                                  #
     # ################################################################################################################ #
     def processSend(self):
+        '''
+        This function is called by main once per iteration. It manages the sending of segments, including
+        retransmissions due to timeouts and flow control.
+        '''
+        for seqnum, lastSent in self.lastSentIteration.items():
+            if self.currentIteration - lastSent >= self.TIMEOUT_ITERATIONS:
+                payload = self.dataToSend[seqnum:seqnum + self.DATA_LENGTH]
+                segmentSend = Segment()
+                segmentSend.setData(str(seqnum), payload)
+
+                self.countSegmentTimeouts += 1
+                print("Timeout at offset: ", seqnum)
+                print("Retransmitting segment: ", segmentSend.to_string())
+                self.sendChannel.send(segmentSend)
+                self.lastSentIteration[seqnum] = self.currentIteration
+
         windowEnd = self.sendBase + self.FLOW_CONTROL_WIN_SIZE
 
         # ############################################################################################################ #
@@ -152,6 +171,8 @@ class RDTLayer(object):
         # Use the unreliable sendChannel to send the segment
             self.sendChannel.send(segmentSend)
 
+            self.lastSentIteration[self.nextSeqNum] = self.currentIteration  # Record the iteration when the segment was sent
+
             self.nextSeqNum = payloadEnd  # Update nextSeqNum to the end of the payload just sent
 
     # ################################################################################################################ #
@@ -177,6 +198,9 @@ class RDTLayer(object):
                 acknum = int(segment.acknum)
                 if self.sendBase < acknum <= self.nextSeqNum:
                     self.sendBase = acknum
+                    for seqnum in list(self.lastSentIteration):
+                        if seqnum < acknum:
+                            del self.lastSentIteration[seqnum]
                     print("Received cumulative ACK:", acknum)
                 continue  # Discard segments with invalid sequence numbers
             receivedValidData = True

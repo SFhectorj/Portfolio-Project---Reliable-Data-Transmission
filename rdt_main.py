@@ -46,7 +46,7 @@ server = RDTLayer()
 outOfOrder = False
 dropPackets = False
 delayPackets = False
-dataErrors = False
+dataErrors = True
 
 # Create unreliable communication channels
 clientToServerChannel = UnreliableChannel(outOfOrder,dropPackets,delayPackets,dataErrors)
