@@ -173,6 +173,11 @@ class RDTLayer(object):
                 continue  # Discard segments with bad checksum
             
             if segment.seqnum == -1:
+                # This advances the sendBase to the acknum if it is valid and within the window
+                acknum = int(segment.acknum)
+                if self.sendBase < acknum <= self.nextSeqNum:
+                    self.sendBase = acknum
+                    print("Received cumulative ACK:", acknum)
                 continue  # Discard segments with invalid sequence numbers
             receivedValidData = True
             seqnum = int(segment.seqnum)
